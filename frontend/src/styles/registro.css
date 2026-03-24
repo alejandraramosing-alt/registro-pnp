@@ -1,0 +1,290 @@
+/* ===============================
+   CONTENEDOR PRINCIPAL
+   =============================== */
+
+.registro-container{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
+  padding: 20px;
+  width: 100vw;
+  padding-top:  600px; /* espacio por navbar fijo que no se pegue arriba */
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: linear-gradient(
+    435deg,
+    #0b4e9c 0%,
+    #1b8ba1 50%,
+    #1db35a 100%
+  );
+
+}
+
+/* ===============================
+   PANEL IZQUIERDO
+   =============================== */
+
+.registro-left{
+  width: 380px;
+  max-width: 520px;
+  margin-top: 100px; /* titulo y contenedor mas arriba o abajo*/
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ===============================
+   TITULO PRINCIPAL
+   =============================== */
+
+.titulo-principal{
+  font-size: 60px;
+  margin-bottom: 30px;
+  color: white;
+  font-weight: 900;
+}
+
+/* ===============================
+   INPUT DNI
+   =============================== */
+
+.input-dni{
+  padding: 12px;
+  width: 260px;
+  margin-bottom: 20px;
+  font-size: 20px;
+
+  border: none;
+  border-radius: 15px;
+}
+
+/* ===============================
+   BOTONES DNI
+   =============================== */
+
+.dni-buttons{
+  display: flex;
+  gap: 12px;
+}
+
+/* ===============================
+   CARD FORMULARIO
+   =============================== */
+
+.registro-card{
+  background: #ffffff;
+  flex: 1 1 420px;
+  max-width: 550px;
+
+  padding: 25px;
+  border-radius: 25px;
+
+  box-shadow: 0 25px 80px rgba(236, 240, 241, 0.899);
+}
+
+/* INPUTS DEL FORMULARIO */
+
+.registro-card input,
+.registro-card select {
+
+  width: 100%;
+
+  padding: 12px 14px;
+
+  border-radius: 12px;   /* casillas input */
+
+  border: 1px solid #3998c1;
+
+  background: #f7f9fb;
+
+  font-size: 20px;
+
+  outline: none;
+
+  transition: all 0.2s ease;
+}
+
+.registro-card input:focus,
+.registro-card select:focus {
+
+  border-color: #2acddf; /* luz celeste uando las casillas son seleccionadas*/
+
+  background: white;
+
+  box-shadow: 0 0 0 3px rgba(42,167,223,0.15);
+}
+
+
+
+/* CHECKBOX SERVICIOS */
+
+.servicio-item{
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 5px;
+  font-size: 16px;
+
+  cursor: pointer;
+}
+
+.servicio-item input{
+  width: 22px;
+  height: 22px;
+}
+
+/* ===============================
+   GRID DE FORMULARIO (2 COLUMNAS)
+   =============================== */
+
+.form-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Cada campo */
+
+.campo p{
+  margin: 0 0 6px 0;
+  font-weight: 600;
+  color: #00A1DE;
+  font-size: 15px;   /* titulos de casillas*/
+}
+
+/* Inputs */
+
+.input-form{
+  width: 100%;
+  padding: 12px;
+
+  border: 1px solid #ddd;
+  border-radius: 80px;
+
+  font-size: 15px;
+}
+
+/* TITULO DEL FORMULARIO */
+
+.titulo-formulario{
+
+  font-size: 20px;      /* 🔥 tamaño */
+
+  font-weight: 700;     /* negrita elegante */
+
+  color: #2c3e50;       /* gris corporativo */
+
+  margin-bottom: 18px;
+
+}
+
+
+.btn-registrar{
+
+  background: #ffc72c;     /* ⭐ amarillo corporativo */
+
+  color: #ffffff;
+
+  border: none;
+
+  border-radius: 12px;
+
+  padding: 14px 28px;
+
+  font-weight: 700;
+
+  font-size: 16px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+/* efecto hover */
+
+.btn-registrar:hover{
+  background: #ffb700;
+}
+
+/* BOTON LIMPIAR FIRMA — SECUNDARIO */
+
+.btn-limpiar{
+
+  background: #636363;     /*  color de fondo*/
+
+  color: #ffffff;
+
+  border: none;
+
+  border-radius: 12px;
+
+  padding: 14px 28px;
+
+  font-weight: 700;
+
+  font-size: 16px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+/* HOVER */
+
+.btn-limpiar:hover{
+  background: #8a8d8e;
+  border-color: #c8d1d8;
+}
+
+/* CLICK */
+
+.btn-limpiar:active{
+  background: #1762a3;
+}
+
+.firma-botones{
+  display: flex;
+  gap: 12px;
+}
+
+
+
+.btn-buscar{
+
+  background: #ffffff;     /*  color de fondo*/
+
+  color: #000000;
+
+  border: none;
+
+  border-radius: 12px;
+
+  padding: 14px 28px;
+
+  font-weight: 700;
+
+  font-size: 16px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+/* HOVER */
+
+.btn-buscar:hover{
+  background: #d4ddde;
+  border-color: #c8d1d8;
+}
+
+/* CLICK */
+
+.btn-buscar:active{
+  background: #8da2b5;
+}

@@ -1,0 +1,73 @@
+.historial-container{
+
+padding:40px;
+font-family:Arial;
+
+}
+
+.filtros{
+
+display:flex;
+gap:20px;
+align-items:end;
+margin-bottom:30px;
+
+}
+
+.filtros input{
+
+padding:20px;
+border-radius:6px;
+border:1px solid #f9f9f9;
+
+}
+
+button{
+
+background:#52D0FF;
+color:rgb(255, 255, 255);
+border:none;
+padding:10px 18px;
+border-radius:6px;
+cursor:pointer;
+
+}
+
+table{
+
+width:100%;
+border-collapse:collapse;
+
+}
+
+thead{
+
+background:#02387e;
+color:white;
+
+}
+
+th,td{
+
+padding:10px;
+border:1px solid #ddd;
+text-align:left;
+
+}
+
+tbody tr:nth-child(even){
+background:#f5f5f5;
+}
+/* ===== ENCABEZADOS ANT DESIGN ALTERNADOS ===== */
+
+.ant-table-thead > tr > th:nth-child(odd) {
+  background: #00a1de !important; /* celeste */
+  color: white !important;
+  font-weight: bold;
+}
+
+.ant-table-thead > tr > th:nth-child(even) {
+  background: #6b6b6b !important; /* plomo */
+  color: white !important;
+  font-weight: bold;
+}
