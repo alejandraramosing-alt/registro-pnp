@@ -11,29 +11,43 @@ function HorasExtras() {
   const [fecha, setFecha] = useState("");
 
   // 🔎 Buscar policía
+
+
   const buscarPolicia = async () => {
 
-    if (!dni) {
-      alert("Ingrese un DNI");
+  if (!dni) {
+    alert("Ingrese un DNI");
+    return;
+  }
+
+  try {
+
+    const res = await axios.get(
+      `http://192.168.1.137:3000/api/programacion/buscar/${dni}`
+    );
+
+    if (!res.data) {
+      alert("No existe en la programación");
+      setPolicia({});
       return;
     }
 
-    try {
+    setPolicia(res.data);
 
-      const response = await axios.post(
-        "http://192.168.1.118:3000/api/policia/buscar",
-        { dni }
-      );
+  } catch (error) {
 
-      setPolicia(response.data);
+    console.error(error);
+    alert("Error consultando base de datos");
 
-    } catch (error) {
+  }
+};
+  
 
-      console.error(error);
-      alert("NO SE ENCONTRÓ AL PERSONAL");
 
-    }
-  };
+
+
+
+
 
   // 📅 Registrar horas extras
   const registrarHorasExtras = async () => {
@@ -70,7 +84,7 @@ function HorasExtras() {
     try {
 
       await axios.post(
-        "http://192.168.1.118:3000/api/asistencia/registrarhoras",
+        "http://192.168.1.137:3000/api/asistencia/registrarhoras",
         datos
       );
 
@@ -88,6 +102,26 @@ function HorasExtras() {
 
     }
   };
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   return (
 

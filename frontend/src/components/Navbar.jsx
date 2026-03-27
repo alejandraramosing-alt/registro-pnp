@@ -6,7 +6,6 @@ import {
   HourglassFilled,
   CalendarOutlined
 } from "@ant-design/icons";
-
 const { Header } = Layout;
 
 function Navbar({ pantalla, setPantalla }) {
@@ -76,6 +75,14 @@ Seguridad Integral
   >
     INICIO
   </Menu.Item>
+
+<Menu.Item
+  key="cargaProgramacion"
+  icon={<CalendarOutlined />}
+  onClick={() => setPantalla("cargaProgramacion")}
+>
+  CARGAR PROGRAMACIÓN
+</Menu.Item>
 
   {/* 🔥 NUEVO */}
   <Menu.Item

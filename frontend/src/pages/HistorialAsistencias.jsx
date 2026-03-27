@@ -22,44 +22,69 @@ const [nombre,setNombre] = useState("");
 const [servicio,setServicio] = useState("todos");
 const [jefeGrupo,setJefeGrupo] = useState("todos");
 
+
+
+
+
 const buscar = async () => {
 
- setLoading(true);
+  setLoading(true);
 
-  console.log("Fecha inicio:", fechaInicio);
-  console.log("Fecha fin:", fechaFin);
+  try {
 
+    const response = await fetch(
+      "http://192.168.1.137:3000/api/asistencia/historial",
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },   
+        body: JSON.stringify({
+          fechaInicio: fechaInicio ? fechaInicio.format("YYYY-MM-DD") : "",
+          fechaFin: fechaFin ? fechaFin.format("YYYY-MM-DD") : "",
+          dni,
+          nombre,
+          servicio: servicio === "todos" ? "" : servicio,
+          jefeGrupo: jefeGrupo === "todos" ? "" : jefeGrupo
+        })
+      }
+    );
 
-const response = await fetch(
-"http://192.168.1.118:3000/api/asistencia/historial",
-{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},   
-body: JSON.stringify({
-  fechaInicio: fechaInicio ? fechaInicio.format("YYYY-MM-DD") : "",
-  fechaFin: fechaFin ? fechaFin.format("YYYY-MM-DD") : "",
-  dni,
-  nombre,
-  servicio: servicio === "todos" ? "" : servicio,
-  jefeGrupo: jefeGrupo === "todos" ? "" : jefeGrupo
-})
-}
-);
+    if (!response.ok) {
+      throw new Error("Error en backend");
+    }
 
-const data = await response.json();
+    const data = await response.json();
 
-const dataConId = data.map((r, index) => ({
+    const dataConId = data.map((r) => ({
   ...r,
-  id: `${r.dni}-${r.fecha}-${index}`
+  id: r.id
 }));
 
-setHistorial(dataConId);
+    setHistorial(dataConId);
 
-setLoading(false);
+  } catch (error) {
+
+    console.error(error);
+    alert("Error cargando historial");
+
+  }
+
+  setLoading(false);
 
 };
+
+
+
+
+
+
+
+
+
+
+
+
 
 const limpiar = () => {
 setFechaInicio(null);
@@ -70,7 +95,7 @@ setHistorial([]);
 const exportarExcel = async () => {
 
 const response = await fetch(
-"http://192.168.1.118:3000/api/historial/excel",
+"http://192.168.1.137:3000/api/historial/excel",
 {
 method:"POST",
 headers:{
@@ -108,7 +133,7 @@ a.click();
 const descargarIndividual = async (registro) => {
 
   const response = await fetch(
-    "http://192.168.1.118:3000/api/declaracion-individual",
+    "http://192.168.1.137:3000/api/declaracion-individual",
     {
       method: "POST",
       headers: {
@@ -152,7 +177,7 @@ const descargarSeleccionados = async () => {
   for (const registro of filasSeleccionadas) {
 
     const response = await fetch(
-      "http://192.168.1.118:3000/api/declaracion-individual",
+      "http://192.168.1.137:3000/api/declaracion-individual",
       {
         method: "POST",
         headers: {
@@ -294,6 +319,82 @@ render:(_,r)=>(
 
 
 
+
+
+
+
+const eliminarRegistro = async (registro) => {
+
+  const confirmar = window.confirm(
+    `¿Eliminar registro de ${registro.nombres}?`
+  );
+
+  if (!confirmar) return;
+
+  try {
+
+    await fetch(
+      `http://192.168.1.137:3000/api/asistencia/eliminar/${registro.id}`,
+      { method: "DELETE" }
+    );
+
+    // 🔥 refrescar tabla
+    buscar();
+
+  } catch (error) {
+
+    console.error(error);
+    alert("Error eliminando registro");
+
+  }
+};
+
+
+
+
+
+const eliminarSeleccionados = async () => {
+
+  if (filasSeleccionadas.length === 0) {
+    alert("Seleccione al menos un registro");
+    return;
+  }
+
+  const confirmar = window.confirm(
+    `¿Eliminar ${filasSeleccionadas.length} registros?`
+  );
+
+  if (!confirmar) return;
+
+  try {
+
+    const ids = filasSeleccionadas.map(r => r.id);
+
+    await fetch(
+      "http://192.168.1.137:3000/api/asistencia/eliminar-masivo",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids })
+      }
+    );
+
+    // limpiar selección
+    setFilasSeleccionadas([]);
+    setSelectedRowKeys([]);
+
+    // recargar
+    buscar();
+
+  } catch (error) {
+
+    console.error(error);
+    alert("Error eliminando registros");
+
+  }
+};
 
 
 
@@ -447,6 +548,10 @@ return (
       onClick={limpiar}
     />
 
+    
+
+    
+
   </div>
 
 </Col>
@@ -454,6 +559,13 @@ return (
   </Row>
 
 </Card>
+
+
+
+
+
+
+
 
 
 {/* 🔥 BOTÓN DESCARGA MASIVA */}
@@ -468,6 +580,15 @@ return (
     >
       Descargar seleccionados ({filasSeleccionadas.length})
     </Button>
+
+    <Button
+  danger
+  disabled={filasSeleccionadas.length === 0}
+  onClick={eliminarSeleccionados}
+  style={{ marginLeft: 10 }}
+>
+  Eliminar seleccionados ({filasSeleccionadas.length})
+</Button>
 
   </Col>
 </Row>
@@ -485,7 +606,7 @@ return (
 
       <Table
         columns={columns}
-        dataSource={historialFiltrado}
+        dataSource={historial}
         loading={loading}
         rowKey="id"
         rowSelection={rowSelection}

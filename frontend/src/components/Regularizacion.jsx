@@ -11,25 +11,40 @@ function Regularizacion() {
   const [mensaje, setMensaje] = useState("");
 
   // 🔎 Buscar policía
+
   const buscarPolicia = async () => {
 
-    if (!dni) {
-      alert("Ingrese un DNI");
+  if (!dni) {
+    alert("Ingrese un DNI");
+    return;
+  }
+
+  try {
+
+    const res = await axios.get(
+      `http://192.168.1.137:3000/api/programacion/buscar/${dni}`
+    );
+
+    if (!res.data) {
+      alert("No existe en la programación");
+      setPolicia({});
       return;
     }
 
-    try {
-      const response = await axios.post(
-        "http://192.168.1.118:3000/api/policia/buscar",
-        { dni }
-      );
+    setPolicia(res.data);
 
-      setPolicia(response.data);
+  } catch (error) {
 
-    } catch {
-      alert("NO SE ENCONTRO AL PERSONAL");
-    }
-  };
+    console.error(error);
+    alert("Error consultando base de datos");
+
+  }
+};
+  
+
+
+
+
 
   // ✔ Manejo servicios (máx 2)
   const manejarServicio = (valor) => {
@@ -83,7 +98,7 @@ function Regularizacion() {
     };
 
     await axios.post(
-      "http://192.168.1.118:3000/api/regularizacion/registrar",
+      "http://192.168.1.137:3000/api/regularizacion/registrar",
       datos
     );
 

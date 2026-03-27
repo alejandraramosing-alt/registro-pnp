@@ -5,9 +5,181 @@ const axios = require("axios");
 const app = express();
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
+const { Pool } = require("pg");
+const XLSX = require("xlsx");
+const fileUpload = require("express-fileupload");
+
+app.use(fileUpload());
+
+
+
+
+app.post("/api/programacion/validar", async (req, res) => {
+  try {
+
+    const file = req.files?.file;
+
+if (!file) {
+  return res.status(400).json({
+    error: "No se envió archivo"
+  });
+}
+
+
+
+
+    const workbook = XLSX.read(file.data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    const errores = [];
+    const datosLimpios = [];
+
+    data.forEach((row, index) => {
+
+      const fila = index + 3; // por encabezado
+
+      // 🔹 VALIDACIONES
+      if (!row["DNI"]) {
+        errores.push(`Fila ${fila}: DNI vacío`);
+      }
+
+      if (!row["APELLIDOS Y NOMBRES"]) {
+        errores.push(`Fila ${fila}: Nombre vacío`);
+      }
+
+      if (!row["FECHA INICIO"] || !row["FECHA TERMINO"]) {
+        errores.push(`Fila ${fila}: Fechas incompletas`);
+      }
+
+      // 🔹 VALIDAR FORMATO FECHA
+      const validarFecha = (f) => /^\d{2}\/\d{2}\/\d{4}$/.test(f);
+
+      if (row["FECHA INICIO"] && !validarFecha(row["FECHA INICIO"])) {
+        errores.push(`Fila ${fila}: Fecha inicio inválida`);
+      }
+
+      if (row["FECHA TERMINO"] && !validarFecha(row["FECHA TERMINO"])) {
+        errores.push(`Fila ${fila}: Fecha término inválida`);
+      }
+
+      // 🔹 SEPARAR NOMBRE
+      const separado = separarNombre(row["APELLIDOS Y NOMBRES"]);
+
+const limpio = {
+  dni: row["DNI"],
+  grado: row["GRADO"],
+  nombre_completo: row["APELLIDOS Y NOMBRES"],
+
+  apellido_paterno: separado.apellido_paterno,
+  apellido_materno: separado.apellido_materno,
+  nombres: separado.nombres,
+
+  cip: row["CIP"],
+  codofin: row["CODOFIN"],
+  turno: row["TURNO"],
+  puesto: row["PUESTO"],
+  fecha_inicio: formatearFecha(row["FECHA INICIO"]),
+  fecha_fin: formatearFecha(row["FECHA TERMINO"]),
+  celular: row["CELULAR"]
+};
+
+
+      datosLimpios.push(limpio);
+    });
+
+    if (errores.length > 0) {
+      return res.json({
+        ok: false,
+        errores
+      });
+    }
+
+    res.json({
+      ok: true,
+      data: datosLimpios
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error validando Excel" });
+  }
+});
+
+
+const separarNombre = (nombreCompleto) => {
+
+  if (!nombreCompleto) {
+    return {
+      apellido_paterno: "",
+      apellido_materno: "",
+      nombres: ""
+    };
+  }
+
+  nombreCompleto = nombreCompleto.replace(/,/g, " ");
+  const partes = nombreCompleto.trim().split(/\s+/);
+
+  if (partes.length === 1) {
+    return { apellido_paterno: partes[0], apellido_materno: "", nombres: "" };
+  }
+
+  if (partes.length === 2) {
+    return { apellido_paterno: partes[0], apellido_materno: "", nombres: partes[1] };
+  }
+
+  if (partes.length === 3) {
+    return { apellido_paterno: partes[0], apellido_materno: partes[1], nombres: partes[2] };
+  }
+
+  return {
+    apellido_paterno: partes[0],
+    apellido_materno: partes[1],
+    nombres: partes.slice(2).join(" ")
+  };
+};
+
+
+
+
+const formatearFecha = (fecha) => {
+  if (!fecha) return null;
+
+  // Si Excel manda número (formato serial)
+  if (typeof fecha === "number") {
+    const date = new Date((fecha - 25569) * 86400 * 1000);
+    return date.toISOString().split("T")[0];
+  }
+
+  // Si viene como "31/03/2026"
+  if (typeof fecha === "string" && fecha.includes("/")) {
+    const [d, m, y] = fecha.split("/");
+    return `${y}-${m}-${d}`;
+  }
+
+  return fecha;
+};
+
+
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || "postgresql://TU_URL_COMPLETA",
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 app.use(cors());
 app.use(express.json());
+
+
+
+
+
+
+
+
 
 const FLOW_URL = "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c8071441cf004557a005ea4c45d06268/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=S6VFj3pw2f4MJl8nh7iqSCvsue52TlJjuox0l2PgTIo";
 
@@ -38,48 +210,266 @@ app.post("/api/policia/buscar", async (req, res) => {
 
 });
 
-app.get("/", (req, res) => {
-  res.send("API Registro PNP funcionando");
+
+
+
+
+
+app.post("/api/programacion/cargar", async (req, res) => {
+  try {
+
+    const file = req.files?.archivo;
+
+    if (!file) {
+      return res.status(400).json({ error: "No se envió archivo" });
+    }
+
+    const workbook = XLSX.read(file.data);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    for (const row of data) {
+
+      const nombreCompleto = row["APELLIDOS Y NOMBRES"] || "";
+      const separado = separarNombre(row["APELLIDOS Y NOMBRES"]);
+
+await pool.query(`
+  INSERT INTO programacion (
+    dni, grado, nombres, apellido_paterno, apellido_materno,
+    cip, codofin, turno, puesto,
+    fecha_inicio, fecha_fin, celular
+  )
+  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+`, [
+  row["DNI"],
+  row["GRADO"],
+  separado.nombres,
+  separado.apellido_paterno,
+  separado.apellido_materno,
+  row["CIP"],
+  row["CODOFIN"],
+  row["TURNO"],
+  row["PUESTO"],
+  formatearFecha(row["FECHA INICIO"]),
+  formatearFecha(row["FECHA TERMINO"]),
+  row["CELULAR"]
+]);
+    }
+
+    res.json({ mensaje: "Programación cargada correctamente" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error cargando programación" });
+  }
 });
 
-app.post("/api/asistencia/registrar", async (req, res) => {
 
+
+
+app.put("/api/programacion/actualizar/:id", async (req, res) => {
+  try {
+
+    const { id } = req.params;
+    const data = req.body;
+
+    await pool.query(`
+      UPDATE programacion SET
+        dni = $1,
+        grado = $2,
+        apellido_paterno = $3,
+        apellido_materno = $4,
+        nombres = $5,
+        cip = $6,
+        codofin = $7,
+        turno = $8,
+        puesto = $9,
+        fecha_inicio = $10,
+        fecha_fin = $11,
+        celular = $12
+      WHERE id = $13
+    `, [
+      data.dni,
+      data.grado,
+      data.apellido_paterno,
+      data.apellido_materno,
+      data.nombres,
+      data.cip,
+      data.codofin,
+      data.turno,
+      data.puesto,
+      data.fecha_inicio,
+      data.fecha_fin,
+      data.celular,
+      id
+    ]);
+
+    res.json({ mensaje: "Actualizado correctamente" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error actualizando" });
+  }
+});
+
+
+
+
+
+
+
+
+
+app.get("/api/programacion/listar", async (req, res) => {
+  try {
+
+    const result = await pool.query(`
+      SELECT *
+      FROM programacion
+      ORDER BY fecha_inicio DESC
+      LIMIT 200
+    `);
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo programación" });
+  }
+});
+
+
+app.post("/api/asistencia/registrar", async (req, res) => {
   try {
 
     const datos = req.body;
 
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ba64a6062f094921bbe804955b5eb0a9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=8ZCW10uulVv5yn7fBZXs5X4hVJKNxZRGTZ9jE8OxNNs",
-      datos,
-      {
-        validateStatus: () => true   // 🔥 CLAVE
-      }
+    // 🔥 1. TRAER CONFIGURACIÓN
+    const configResult = await pool.query(
+      "SELECT * FROM configuracion LIMIT 1"
     );
 
-    console.log("Status flujo:", response.status);
-    console.log("Respuesta flujo:", response.data);
+    const config = configResult.rows[0];
 
-    // ✔ Siempre responder éxito al frontend
+    const pagoHoraPolicia = Number(config.pago_hora_policia);
+    const pagoHoraEstado = Number(config.pago_hora_estado);
+    const refrigerioUnitario = Number(config.refrigerio_por_servicio);
+
+    // 🔥 2. CÁLCULOS
+    const cantidadServicios = datos.servicios.length;
+    const totalRefrigerio = cantidadServicios * refrigerioUnitario;
+    const esJefe = datos.jefeGrupo === "SI";
+
+    const horas = (cantidadServicios * 8) + (esJefe ? cantidadServicios : 0);
+    const dias = horas / 8;
+
+    const refrigerio = cantidadServicios * refrigerioUnitario;
+    const pagoPolicia = horas * pagoHoraPolicia;
+    const pagoEstado = horas * pagoHoraEstado;
+
+    // 🔥 3. INSERT
+    const query = `
+      INSERT INTO asistencias (
+        dni,
+        grado,
+        nombres,
+        apellido_paterno,
+        apellido_materno,
+        cip,
+        codofin,
+        celular,
+        puesto,
+        servicios,
+        jefe_grupo,
+        fecha,
+        horas_trabajadas,
+        dias_trabajados,
+        pago_policia,
+        pago_estado,
+        firma,
+        tipo_registro,
+        cantidad_servicios,
+refrigerio_unitario,
+total_refrigerio
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+        CURRENT_DATE,
+        $12,$13,$14,$15,$16,$17,$18,$19,$20
+      )
+      RETURNING *;
+    `;
+
+    const values = [
+      datos.dni,
+      datos.grado,
+      datos.nombres,
+      datos.apellido_paterno,
+      datos.apellido_materno,
+      datos.cip,
+      datos.codofin,
+      datos.celular,
+      datos.puesto,
+      datos.servicios.join(","), // 🔥 clave
+      datos.jefeGrupo,
+      horas,
+      dias,
+      pagoPolicia,
+      pagoEstado,
+      datos.firma,
+      "ASISTENCIA",
+      cantidadServicios,
+  refrigerioUnitario,
+  totalRefrigerio
+    ];
+
+    const result = await pool.query(query, values);
+
     res.json({
-      duplicado: false,
-      mensaje: "Asistencia registrada"
+      mensaje: "Asistencia registrada",
+      data: result.rows[0]
     });
 
   } catch (error) {
 
-    console.error("Error real:", error);
+    console.error("ERROR POSTGRES:", error);
+
+    if (error.code === "23505") {
+      return res.json({
+        duplicado: true,
+        mensaje: "Ya registró hoy"
+      });
+    }
 
     res.status(500).json({
       error: "Error registrando asistencia"
     });
-
   }
-
 });
-      
- 
 
 
+
+
+
+app.get("/api/programacion/ultima-actualizacion", async (req, res) => {
+  try {
+
+    const result = await pool.query(`
+      SELECT MAX(created_at) as ultima
+      FROM programacion
+    `);
+
+    res.json({
+      ultima: result.rows[0].ultima
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error obteniendo última actualización"
+    });
+  }
+});
 
 
 
@@ -96,75 +486,167 @@ app.post("/api/asistencia/registrar", async (req, res) => {
 // MISMA HOJA DE ASISTENCIA
 // ======================================
 
-app.post("/api/regularizacion/registrar", async (req, res) => {
 
+
+
+app.post("/api/regularizacion/registrar", async (req, res) => {
   try {
 
     const datos = req.body;
 
-    console.log("=== REGULARIZACION RECIBIDA ===");
-    console.log(datos);
-    console.log("===============================");
+    // 🔥 CONFIG
+    const configResult = await pool.query("SELECT * FROM configuracion LIMIT 1");
+    const config = configResult.rows[0];
 
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/796e430d8eab4572b26dca173463b21e/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=lYK-EenaEUcgCQ4pxUjOSiQ_5w3D9I6QM9HLZigX24c",
-      datos,
-      {
-        validateStatus: () => true
-      }
-    );
+    const pagoHoraPolicia = Number(config.pago_hora_policia);
+    const pagoHoraEstado = Number(config.pago_hora_estado);
+    const refrigerioUnitario = Number(config.refrigerio_por_servicio);
 
-    console.log("Status flujo regularización:", response.status);
-    console.log("Respuesta flujo:", response.data);
+    // 🔥 CÁLCULOS
+    const cantidadServicios = datos.servicios.length;
+
+    const horas = cantidadServicios * 8;
+    const dias = horas / 8;
+
+    const refrigerio = cantidadServicios * refrigerioUnitario;
+    const pagoPolicia = horas * pagoHoraPolicia;
+    const pagoEstado = horas * pagoHoraEstado;
+
+    // 🔥 INSERT
+    const query = `
+      INSERT INTO asistencias (
+        dni, grado, nombres, apellido_paterno, apellido_materno,
+        cip, codofin, celular, puesto,
+        servicios, jefe_grupo,
+        fecha,
+        horas_trabajadas, dias_trabajados,
+        pago_policia, pago_estado,
+        tipo_registro
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,
+        $10,'NO',
+        $11,
+        $12,$13,$14,$15,
+        'REGULARIZACION'
+      )
+      RETURNING *;
+    `;
+
+    const values = [
+      datos.dni,
+      datos.grado,
+      datos.nombres,
+      datos.apellido_paterno,
+      datos.apellido_materno,
+      datos.cip,
+      datos.codofin,
+      datos.celular,
+      datos.puesto,
+      datos.servicios.join(","),
+      datos.fecha_servicio,
+      horas,
+      dias,
+      pagoPolicia,
+      pagoEstado
+    ];
+
+    const result = await pool.query(query, values);
 
     res.json({
-      mensaje: "Regularización registrada correctamente"
+      mensaje: "Regularización registrada",
+      data: result.rows[0]
     });
 
   } catch (error) {
 
-    console.error("Error regularización:", error);
+    console.error("ERROR REGULARIZACION:", error);
 
     res.status(500).json({
       error: "Error registrando regularización"
     });
-
   }
-
 });
+
+
+
+
+
 
 
 
 app.post("/api/asistencia/registrarhoras", async (req, res) => {
-
   try {
 
     const datos = req.body;
-    console.log("=== DNI RECIBIDO ===");
-   console.log(typeof datos.dni, datos.dni);
-   console.log("====================");
 
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/c2fd51ee2bcf4a56ba2194c1ff045833/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=dNAtF76qnLpPpR6Q6QaRbqfdkThlKtGSadAyM8WFPSI",
-      datos
-    );
+    // 🔥 CONFIG
+    const configResult = await pool.query("SELECT * FROM configuracion LIMIT 1");
+    const config = configResult.rows[0];
+
+    const pagoHoraPolicia = Number(config.pago_hora_policia);
+    const pagoHoraEstado = Number(config.pago_hora_estado);
+
+    // 🔥 CÁLCULOS
+    const horas = Number(datos.horas_extras);
+    const dias = horas / 8;
+
+    const pagoPolicia = horas * pagoHoraPolicia;
+    const pagoEstado = horas * pagoHoraEstado;
+
+    // 🔥 INSERT
+    const query = `
+      INSERT INTO asistencias (
+        dni, grado, nombres, apellido_paterno, apellido_materno,
+        cip, codofin, celular, puesto,
+        fecha,
+        horas_trabajadas, dias_trabajados,
+        pago_policia, pago_estado,
+        tipo_registro
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,
+        $10,
+        $11,$12,$13,$14,
+        'HORAS_EXTRAS'
+      )
+      RETURNING *;
+    `;
+
+    const values = [
+      datos.dni,
+      datos.grado,
+      datos.nombres,
+      datos.apellido_paterno,
+      datos.apellido_materno,
+      datos.cip,
+      datos.codofin,
+      datos.celular,
+      datos.puesto,
+      datos.fecha_servicio,
+      horas,
+      dias,
+      pagoPolicia,
+      pagoEstado
+    ];
+
+    const result = await pool.query(query, values);
 
     res.json({
-      mensaje: "Asistencia registrada",
-      data: response.data
+      mensaje: "Horas extras registradas",
+      data: result.rows[0]
     });
 
   } catch (error) {
 
-    console.error(error);
+    console.error("ERROR HORAS:", error);
 
     res.status(500).json({
-      error: "Error registrando asistencia"
+      error: "Error registrando horas extras"
     });
-
   }
-
 });
+
 
 
 
@@ -193,77 +675,92 @@ app.post("/api/asistencia/registrarhoras", async (req, res) => {
 
 
 app.post("/api/reporte/mensual", async (req, res) => {
-
   try {
 
-    const { mes, anio, dni, nombre, fecha, jefeGrupo } = req.body;
+    const { mes, anio, dni, nombre, jefeGrupo } = req.body;
 
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bf727203c40b4d4396659a1bc5c776de/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ipNO1Y1dw0ZBs1PvH-wiRp53hWroWwaoJT6Bkidyvyc",
-      {
-  mes: Number(mes),
-  anio: Number(anio),
-  dni: dni || "",
-  nombre: nombre || "",
-  fecha: fecha || "",
-  jefeGrupo: jefeGrupo || ""
-}
-    );
+    let query = `
+      SELECT 
+        dni,
+        grado,
+        apellido_paterno,
+        apellido_materno,
+        nombres,
+        cip,
+        codofin,
 
+        SUM(dias_trabajados) as dias_totales,
+        SUM(horas_trabajadas) as horas_totales,
+        SUM(pago_policia) as monto,
+        SUM(pago_estado) as pago_estado
 
-const registros = response.data;
+      FROM asistencias
+      WHERE EXTRACT(MONTH FROM fecha) = $1
+      AND EXTRACT(YEAR FROM fecha) = $2
+    `;
 
-const agrupado = {};
+    const values = [mes, anio];
+    let index = 3;
 
-registros.forEach(r => {
+    // 🔍 FILTROS DINÁMICOS
 
-  const dni = r["DNI"];
+    if (dni) {
+      query += ` AND CAST(dni AS TEXT) LIKE $${index++}`;
+      values.push(`%${dni}%`);
+    }
 
-  if(!agrupado[dni]){
-    agrupado[dni] = {
-  grado: r["GRADO"],
-  apellido_paterno: r["APELLIDO PATERNO"],
-  apellido_materno: r["APELLIDO MATERNO"],
-  nombres: r["NOMBRES"],
-  cip: r["CIP"],
-  dni: r["DNI"],
-  codofin: r["CODOFIN"],
+    if (nombre) {
+      query += ` AND LOWER(nombres) LIKE $${index++}`;
+      values.push(`%${nombre.toLowerCase()}%`);
+    }
 
-  // 🔥 CAMPOS PARA FILTROS
-  jefe_grupo: r["JEFE DE GRUPO"],
-  fecha: r["FECHA"],
-  servicios: r["SERVICIOS"],
+    if (jefeGrupo) {
+      query += ` AND jefe_grupo = $${index++}`;
+      values.push(jefeGrupo);
+    }
 
-  dias_totales: 0,
-  horas_totales: 0,
-  monto: 0,
-  pago_estado: 0  
-};
-  }
+    query += `
+      GROUP BY 
+        dni, grado, apellido_paterno, apellido_materno,
+        nombres, cip, codofin
+      ORDER BY nombres ASC
+    `;
 
-  agrupado[dni].dias_totales += Number(r["DIAS TRABAJADOS"] || 0);
-  agrupado[dni].horas_totales += Number(r["HORAS TRABAJADAS"] || 0);
-  agrupado[dni].monto = Number(
-  (agrupado[dni].monto + Number(r["PAGO POLICIA"] || 0)).toFixed(2)
-);
-agrupado[dni].pago_estado += Number(r["PAGO ESTADO"] || 0);
-});
+    const result = await pool.query(query, values);
 
-const resultado = Object.values(agrupado);
-
-res.json(resultado);
-
+    res.json(result.rows);
 
   } catch (error) {
-
     console.error(error);
-
     res.status(500).json({
-      error: "Error obteniendo registros"
+      error: "Error generando reporte"
     });
-
   }
+});
 
+
+
+
+
+
+app.post("/api/asistencia/eliminar-masivo", async (req, res) => {
+  try {
+
+    const { ids } = req.body;
+
+    await pool.query(`
+      DELETE FROM asistencias
+      WHERE id = ANY($1)
+    `, [ids]);
+
+    res.json({ mensaje: "Registros eliminados" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error eliminando registros"
+    });
+  }
 });
 
 
@@ -271,53 +768,72 @@ res.json(resultado);
 
       
 
-app.post("/api/asistencia/historial", async (req, res) => {
 
+
+app.post("/api/asistencia/historial", async (req, res) => {
   try {
 
     const { fechaInicio, fechaFin, dni, nombre, servicio, jefeGrupo } = req.body;
 
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/62009a9494a14a979e18c54e9969e499/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=iTLWVpXxHJktVlBxTkBSEwjGp63PTS3XS_Ni1CwJyxE",
-      {
-        fechaInicio,
-        fechaFin,
-        dni,
-        nombre,
-        servicio,
-        jefeGrupo
-      }
-    );
+    let query = `
+      SELECT id, *
+      FROM asistencias
+      WHERE 1=1
+    `;
 
-    const datos = response.data;
+    const values = [];
+    let index = 1;
 
-    // 🔥 TRANSFORMACIÓN CLAVE
-    const resultado = datos.map(r => ({
-      fecha: r["FECHA DE SERVICIO"],
-      dni: Number(r["DNI"]),
-      grado: r["GRADO"],
-      apellido_paterno: r["APELLIDO PATERNO"],
-      apellido_materno: r["APELLIDO MATERNO"],
-      nombres: r["NOMBRES"],
-      servicios: r["SERVICIOS"],
-      jefe_grupo: r["JEFE DE GRUPO"],
-      horas_trabajadas: Number(r["HORAS TRABAJADAS"] || 0)  
-    }));
+    if (fechaInicio) {
+      query += ` AND fecha >= $${index++}`;
+      values.push(fechaInicio);
+    }
 
-    res.json(resultado);
+    if (fechaFin) {
+      query += ` AND fecha <= $${index++}`;
+      values.push(fechaFin);
+    }
+
+    if (dni) {
+      query += ` AND CAST(dni AS TEXT) LIKE $${index++}`;
+      values.push(`%${dni}%`);
+    }
+
+    if (nombre) {
+      query += ` AND LOWER(nombres) LIKE $${index++}`;
+      values.push(`%${nombre.toLowerCase()}%`);
+    }
+
+    if (servicio) {
+      query += ` AND LOWER(servicios) LIKE $${index++}`;
+      values.push(`%${servicio.toLowerCase()}%`);
+    }
+
+    if (jefeGrupo) {
+      query += ` AND jefe_grupo = $${index++}`;
+      values.push(jefeGrupo);
+    }
+
+    query += ` ORDER BY fecha DESC`;
+
+    const result = await pool.query(query, values);
+
+    res.json(result.rows);
 
   } catch (error) {
 
-    console.error(error);
+    console.error("ERROR HISTORIAL:", error);
 
     res.status(500).json({
       error: "Error obteniendo historial"
     });
-
   }
-
 });
-;
+
+
+
+
+
 
 
 app.post("/api/declaracion-individual", async (req, res) => {
@@ -326,21 +842,25 @@ app.post("/api/declaracion-individual", async (req, res) => {
 
     const { dni, fecha } = req.body;
 
-    // 🔹 1. Llamar flujo Power Automate
-    const response = await axios.post(
-      "https://default176980b70c474b61853d7f53d2d72a.8d.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/a1c26fda4f2f47269c60c0b39e7f84c0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=sPpY3XPJq7GEsdG9QM-j2WL9larFWkXzaiU3T3Tmt8s",
-      {
-        dni: Number(dni),
-        fecha
-      }
-    );
+    // 🔹 1. TRAER DATOS DESDE TU BD (NO SOLO POWER AUTOMATE)
+    const result = await pool.query(`
+      SELECT *
+      FROM asistencias
+      WHERE dni = $1 AND fecha = $2
+      LIMIT 1
+    `, [dni, fecha]);
 
-    const d = response.data;
-    console.log(d)
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Registro no encontrado" });
+    }
 
-    console.log("Datos recibidos:", d);
+    const r = result.rows[0];
 
-    // 🔹 2. Crear PDF
+    const monto = Number(r.total_refrigerio || 0);
+    const montoTexto = `S/ ${Number(monto).toFixed(2)}`;
+
+
+    // 🔹 4. CREAR PDF
     const doc = new PDFDocument({ margin: 50 });
 
     res.setHeader("Content-Type", "application/pdf");
@@ -352,10 +872,10 @@ app.post("/api/declaracion-individual", async (req, res) => {
     doc.pipe(res);
 
     // ===============================
-    // 🔵 AQUÍ VA EL TEXTO DEL DOCUMENTO
+    // 🟦 TÍTULO
     // ===============================
 
-    doc.fontSize(14).text(
+    doc.fontSize(16).text(
       "RECIBO DE DINERO",
       { align: "center" }
     );
@@ -363,24 +883,28 @@ app.post("/api/declaracion-individual", async (req, res) => {
     doc.moveDown(2);
 
     const nombreCompleto =
-      `${d.apellido_paterno} ${d.apellido_materno}, ${d.nombres}`;
+      `${r.apellido_paterno} ${r.apellido_materno}, ${r.nombres}`;
 
-    const jefeTexto =
-      d.jefe === "SI"
-        ? "Asimismo, declaro haber ejercido funciones como jefe de grupo durante el servicio."
-        : "";
+    // ===============================
+    // 🟩 CUERPO
+    // ===============================
 
     doc.fontSize(12).text(
-      `Yo, ${nombreCompleto}, identificado(a) con DNI Nº ${d.dni}, CIP Nº ${d.cip}, CODOFIN ${d.codofin} y GRADO: ${d.grado} ` +
-      `he recibido de Gas Natural de Lima y Callao la cantidad de:   por concepto de merienda, estipulado en` +
-      ` el numeral 4 del anexo 2 del Convenio Específico de Colaboración Interinstitucional entre la PNP  y Cálidda.`,
+      `Yo, ${nombreCompleto}, identificado(a) con DNI Nº ${r.dni}, ` +
+      `CIP Nº ${r.cip}, CODOFIN ${r.codofin} y GRADO: ${r.grado}, ` +
+      `declaro haber recibido de Gas Natural de Lima y Callao S.A. ` +
+      `la suma de ${montoTexto} soles, ` +
+      `por concepto de merienda, conforme al Convenio de Colaboración Interinstitucional.`,
       { align: "justify" }
     );
 
-
-    if (jefeTexto) {
+    // 🔹 JEFE DE GRUPO
+    if (r.jefe_grupo === "SI") {
       doc.moveDown();
-      doc.text(jefeTexto, { align: "justify" });
+      doc.text(
+        "Asimismo, declaro haber ejercido funciones como jefe de grupo durante el servicio.",
+        { align: "justify" }
+      );
     }
 
     doc.moveDown(2);
@@ -390,25 +914,39 @@ app.post("/api/declaracion-individual", async (req, res) => {
       { align: "justify" }
     );
 
-// ===== INSERTAR FIRMA =====
+    // ===============================
+    // ✍️ FIRMA
+    // ===============================
 
-doc.moveDown(2);   // 🔥 espacio antes de la firma
+    doc.moveDown(2);
 
-if (d.firmaBase64) {
+    if (r.firma) {
 
-  const firmaBuffer = Buffer.from(d.firmaBase64, "base64");
+  try {
 
-  const firmaWidth = 220;
-  const x = (doc.page.width - firmaWidth) / 2;
+    // 🔥 quitar encabezado base64
+    const base64Data = r.firma.replace(/^data:image\/\w+;base64,/, "");
 
-  doc.image(firmaBuffer, x, doc.y, {
-    width: firmaWidth
-  });
+    const firmaBuffer = Buffer.from(base64Data, "base64");
 
-   doc.moveDown(5);  
+    const firmaWidth = 220;
+    const x = (doc.page.width - firmaWidth) / 2;
+
+    doc.image(firmaBuffer, x, doc.y, {
+      width: firmaWidth
+    });
+
+    doc.moveDown(5);
+
+  } catch (e) {
+    console.error("Error cargando firma:", e);
+  }
+
 }
 
- 
+    // ===============================
+    // 🧾 PIE
+    // ===============================
 
     doc.text(
       "______________________________",
@@ -417,22 +955,10 @@ if (d.firmaBase64) {
 
     doc.moveDown(2);
 
+    doc.text(nombreCompleto, { align: "center" });
+    doc.text(`DNI Nº ${r.dni}`, { align: "center" });
+    doc.text(`FECHA: ${r.fecha}`, { align: "center" });
 
-    doc.text(
-      nombreCompleto,
-      { align: "center" }
-    );
-
-    doc.text(
-      `DNI Nº ${d.dni}`,
-      { align: "center" }
-    );
-    doc.text(
-      `FECHA: ${d.fecha}`,
-      { align: "center" }
-    );
-
-    // 🔹 Finalizar PDF
     doc.end();
 
   } catch (error) {
@@ -454,7 +980,37 @@ if (d.firmaBase64) {
 
 
 
-const PORT = 3000;
+
+app.get("/api/programacion/buscar/:dni", async (req, res) => {
+  try {
+
+    const { dni } = req.params;
+
+    const result = await pool.query(`
+      SELECT *
+      FROM programacion
+      WHERE dni = $1
+      ORDER BY fecha_inicio DESC
+      LIMIT 1
+    `, [dni]);
+
+    if (result.rows.length === 0) {
+      return res.json(null);
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error buscando en programación"
+    });
+  }
+});
+
+
+
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);

@@ -15,17 +15,31 @@ function RegistroPNP() {
   const sigCanvas = useRef();
 
   const buscarPolicia = async () => {
-    try {
-      const response = await axios.post(
-        "http://192.168.1.118:3000/api/policia/buscar",
-        { dni: dni }
-      );
-      setPolicia(response.data);
-    } catch (error) {
-      console.error(error);
-      alert("NO SE ECONTRO AL PERSONAL");
+  try {
+
+    // 🔥 1. BUSCAR EN TU BD
+    const resDB = await axios.get(
+      `http://192.168.1.137:3000/api/programacion/buscar/${dni}`
+    );
+
+    if (resDB.data) {
+      setPolicia(resDB.data);
+      return;
     }
-  };
+
+    // 🔥 2. SI NO EXISTE → POWER AUTOMATE
+    const response = await axios.post(
+      "http://192.168.1.137:3000/api/policia/buscar",
+      { dni: dni }
+    );
+
+    setPolicia(response.data);
+
+  } catch (error) {
+    console.error(error);
+    alert("No se encontró el personal");
+  }
+};
 
   const manejarServicio = (valor) => {
 
@@ -79,7 +93,7 @@ function RegistroPNP() {
     try{
 
       await axios.post(
-        "http://192.168.1.118:3000/api/asistencia/registrar",
+        "http://192.168.1.137:3000/api/asistencia/registrar",
         datos
       );
 

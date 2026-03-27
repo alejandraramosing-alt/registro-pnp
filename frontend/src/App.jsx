@@ -10,12 +10,13 @@ import HorasExtras from "./components/HorasExtras";
 import Regularizacion from "./components/Regularizacion";
 import MenuOpciones from "./pages/MenuOpciones";
 import "./styles/layout.css";
+import CargaProgramacion from "./pages/CargaProgramacion";
 
 const { Content } = Layout;
 
 function App() {
 
-  const [pantalla, setPantalla] = useState("home");
+  const [pantalla, setPantalla] = useState("cargaProgramacion");
 
   return (
 
@@ -55,18 +56,20 @@ function App() {
             minHeight:"100%"
           }}
         >
-
+         
           {pantalla === "registro" && <RegistroPNP />}
+          
           {pantalla === "horasExtras" && <HorasExtras />}
           {pantalla === "regularizacion" && <Regularizacion />}
 
           {pantalla === "home" && <Home />}
           {pantalla === "menu" && <MenuOpciones setPantalla={setPantalla} />}
+          
 
           {pantalla === "historial" && <HistorialAsistencias />}
 
           {pantalla === "reporte" && <ReporteMensual />}
-
+{pantalla === "cargaProgramacion" && <CargaProgramacion />}
         </div>
 
       </Content>
